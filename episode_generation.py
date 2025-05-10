@@ -172,7 +172,7 @@ def generate_episodes_from_snippets(snippets):
                 source_description=sanitize_for_neo4j(
                     f"Technical documentation snippet from {section}"
                 ),
-                source_url=sanitize_for_neo4j(source_path),
+                source_url=sanitize_for_neo4j(snippet.source_path),
                 reference_time=datetime.now(
                     timezone.utc
                 ),  # Datetime objects are handled by Neo4j driver
@@ -187,6 +187,7 @@ def generate_episodes_from_snippets(snippets):
                     + ("..." if len(snippet.description) > 100 else "")
                 ),
             )
+            logger.debug(f"DEBUG episode_generation.py: episode prepared: {episode}")
             episodes.append(episode)
         except Exception as e:
             logger.warning(

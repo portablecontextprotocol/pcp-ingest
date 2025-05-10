@@ -34,7 +34,7 @@ class SuiGeneralConcept(BaseModel):
     )
     key_properties_or_implications: List[str] = Field(
         default_factory=list,
-        description="A list of key properties, implications, benefits, or trade-offs associated with this concept.",
+        description="A list of key properties, implications, benefits, or trade-offs associated with this concept. Each item should be a JSON string representing the property or implication.",
     )
     related_concepts: List[str] = Field(
         default_factory=list,
@@ -109,9 +109,9 @@ class MoveStructDefinition(BaseModel):
         default_factory=list,
         description="A list of abilities associated with the struct (e.g., ['key', 'store']).",
     )
-    fields: List[Dict[str, str]] = Field(
+    fields: List[str] = Field(
         default_factory=list,
-        description="A list of fields within the struct. Each item should be a dict with 'name', 'type', and 'description' keys (e.g., [{'name': 'id', 'type': 'UID', 'description': 'Unique identifier.'}]).",
+        description='A list of fields within the struct. Each item should be a JSON string with \'name\', \'type\', and \'description\' keys (e.g., \'{"name": "id", "type": "UID", "description": "Unique identifier."}\').',
     )
     is_object_type: Optional[bool] = Field(  # Sui specific addition
         None,
@@ -161,9 +161,9 @@ class MoveFunctionDefinition(BaseModel):
         default=False,
         description="True if the function is an 'entry' function, callable directly in a transaction.",
     )
-    parameters: List[Dict[str, str]] = Field(
+    parameters: List[str] = Field(
         default_factory=list,
-        description="A list of parameters. Each item a dict with 'name', 'type', and 'description' (e.g., [{'name': 'coin', 'type': 'Coin<SUI>', 'description': 'The coin to split.'}]).",
+        description='A list of parameters. Each item should be a JSON string with \'name\', \'type\', and \'description\' (e.g., \'{"name": "coin", "type": "Coin<SUI>", "description": "The coin to split."}\').',
     )
     return_type: Optional[str] = Field(
         None,
@@ -177,7 +177,7 @@ class MoveFunctionDefinition(BaseModel):
         default_factory=list,
         description="A list of event types (struct names) that this function may emit.",
     )
-    aborts_with: List[str] = Field(  # More specific than just errors
+    aborts_with: List[str] = Field(
         default_factory=list,
         description="A list of custom error names or conditions under which this function explicitly aborts.",
     )
@@ -216,9 +216,9 @@ class SuiEventDefinition(BaseModel):
         ...,
         description="An explanation of what this event signifies and the context in which it's emitted.",
     )
-    fields: List[Dict[str, str]] = Field(
+    fields: List[str] = Field(
         default_factory=list,
-        description="A list of fields within the event struct. Each item a dict with 'name', 'type', and 'description'.",
+        description="A list of fields within the event struct. Each item should be a JSON string with 'name', 'type', and 'description'.",
     )
     emitted_by_functions: List[str] = Field(
         default_factory=list,
@@ -293,9 +293,9 @@ class SuiClientCommand(BaseModel):
         None,
         description="A typical example of how to use the command, including placeholders for arguments.",
     )
-    key_options_flags: List[Dict[str, str]] = Field(
+    key_options_flags: List[str] = Field(
         default_factory=list,
-        description="A list of important options/flags. Each item a dict with 'flag' (e.g., '--gas-budget', '--json') and 'description'.",
+        description="A list of important options/flags. Each item should be a JSON string with 'flag' (e.g., '--gas-budget', '--json') and 'description'.",
     )
     related_concepts_or_tasks: List[str] = Field(
         default_factory=list,
@@ -328,9 +328,9 @@ class SuiRPCMethodDefinition(BaseModel):
         ...,
         description="A detailed explanation of what the RPC method does, its purpose, and any important considerations for its use.",
     )
-    request_parameters: List[Dict[str, Any]] = Field(
+    request_parameters: List[str] = Field(
         default_factory=list,
-        description="A list of request parameters. Each item a dict with 'name', 'type', 'required' (bool), and 'description'.",
+        description="A list of request parameters. Each item should be a JSON string with 'name', 'type', 'required' (bool), and 'description'.",
     )
     response_description: str = Field(
         ...,

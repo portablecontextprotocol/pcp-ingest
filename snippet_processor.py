@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 async def process_snippets_with_deduplication(
-    driver, snippets: List[Snippet], group_id="sui-docs"
+    driver, snippets: List[Snippet], group_id="sui-docs", force: bool = False
 ):
     """
     Process snippets with deduplication check before generating episodes.
@@ -20,6 +20,7 @@ async def process_snippets_with_deduplication(
         driver: Neo4j AsyncDriver
         snippets: List of snippet objects to process
         group_id: Group ID for episodes (default: "sui-docs")
+        force: If True, skip deduplication and always re-insert all snippets
 
     Returns:
         Tuple containing list of generated episodes and count of skipped duplicates
@@ -59,27 +60,40 @@ async def process_snippets_with_deduplication(
                         clean_mentions.append(f"{mention}")
                 content_parts.append(f"\nMentions: {', '.join(clean_mentions)}")
             content = "\n".join(content_parts)
+            snippet.source_path = snippet.source
 
-            # Check if this content already exists in the database
-            exists, uuid = await check_episode_exists(
-                driver=driver,
-                content=content,
-                group_id=group_id,
-                source_path=snippet.source,
-            )
-
-            if exists:
-                skipped_count += 1
-            else:
+            if force:
                 new_snippets.append(snippet)
+            else:
+                # Check if this content already exists in the database
+                exists, uuid = await check_episode_exists(
+                    driver=driver,
+                    content=content,
+                    group_id=group_id,
+                    source_path=snippet.source,
+                )
+
+                if exists:
+                    skipped_count += 1
+                else:
+                    new_snippets.append(snippet)
         except Exception as e:
             logger.warning(f"Error processing snippet {snippet.title}: {str(e)}")
             # Continue to the next snippet
 
     # Generate episodes only for new snippets
-    episodes = generate_episodes_from_snippets(new_snippets) if new_snippets else []
+    episodes_output_list = (
+        generate_episodes_from_snippets(new_snippets) if new_snippets else []
+    )
+    logger.debug(
+        f"DEBUG snippet_processor.py: 'generate_episodes_from_snippets' returned: {episodes_output_list}"
+    )
+    if episodes_output_list:
+        logger.debug(
+            f"DEBUG snippet_processor.py: Types from 'generate_episodes_from_snippets': {[type(ep) for ep in episodes_output_list]}"
+        )
 
-    return episodes, skipped_count
+    return episodes_output_list, skipped_count
 
 
 async def save_snippets_to_cache(snippets: List[Snippet], cache_file: str) -> None:

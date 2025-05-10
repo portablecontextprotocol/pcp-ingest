@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 from graphiti_core import Graphiti
 from graphiti_core.embedder.openai import OpenAIEmbedder, OpenAIEmbedderConfig
 from graphiti_core.llm_client.openai_generic_client import LLMConfig
-
+from graphiti_core.utils.maintenance.graph_data_operations import clear_data
 from clients.openai_compatible_client import OpenAIGenericClientJSONResponse
 
 # Configure logging
@@ -137,6 +137,16 @@ def get_graphiti_client(
     )
 
     return _graphiti_instance
+
+
+async def clear_graph():
+    """
+    Clear the Graphiti graph.
+    """
+    global _graphiti_instance
+
+    await clear_data(_graphiti_instance.driver)
+    await _graphiti_instance.build_indices_and_constraints()
 
 
 async def close_graphiti_client():

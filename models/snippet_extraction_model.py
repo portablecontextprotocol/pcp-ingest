@@ -43,6 +43,11 @@ class Snippet(BaseModel):
         description="A list of other key entities, libraries, or concepts mentioned.",
         examples=[["Node.js", "npm"], ["@optiaxiom/web-components"]],
     )
+    source_path: Optional[str] = Field(
+        default=None,
+        description="The path to the source Markdown file from which this snippet was extracted.",
+        examples=["assets/sui-docs/docs_guides/write-package.md"],
+    )
 
 
 class SnippetList(BaseModel):

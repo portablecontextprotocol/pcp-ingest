@@ -5,9 +5,15 @@ import json
 from datetime import datetime
 import time
 
+from graphiti_core.nodes import EpisodeType
+
 from entities.sui_entities import SUI_ENTITY_TYPES
 from utils import get_markdown_files, process_markdown_file, sanitize_neo4j_params
-from clients.graphiti_client import get_graphiti_client, close_graphiti_client
+from clients.graphiti_client import (
+    get_graphiti_client,
+    close_graphiti_client,
+    clear_graph,
+)
 from snippet_extractor import format_document, ConnectionError
 from snippet_processor import (
     process_snippets_with_deduplication,
@@ -17,17 +23,19 @@ from snippet_processor import (
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
 
-async def main():
+async def main(force: bool = False):
     try:
         logger.info("Starting Graphiti LLM Formatter...")
 
         # Initialize the Graphiti client (singleton pattern)
         graphiti = get_graphiti_client()
+
+        # await clear_graph()
 
         # Loop through all markdown files in assets/sui-docs
         markdown_files = await get_markdown_files("./assets/sui-docs")
@@ -84,7 +92,20 @@ async def main():
 
                 # Check for duplicates before generating episodes
                 episodes, skipped = await process_snippets_with_deduplication(
-                    graphiti.driver, snippets, group_id="sui-docs"
+                    graphiti.driver, snippets, group_id="sui-docs", force=force
+                )
+
+                logger.debug(
+                    f"DEBUG app.py: 'process_snippets_with_deduplication' returned 'episodes': {episodes}"
+                )
+                if (
+                    episodes
+                ):  # Check if episodes is not empty before trying to get types
+                    logger.debug(
+                        f"DEBUG app.py: Types in 'episodes': {[type(ep) for ep in episodes]}"
+                    )
+                logger.debug(
+                    f"DEBUG app.py: 'process_snippets_with_deduplication' returned 'skipped': {skipped}"
                 )
 
                 new_snippets += len(episodes)
@@ -94,34 +115,78 @@ async def main():
                     logger.info(
                         f"Adding {len(episodes)} episodes to the graph for {file_path}..."
                     )
-                    # Add episodes with error handling
+                    # Add logging for entity_types
+                    # logger.info(
+                    #     f"entity_types being passed to add_episode: {SUI_ENTITY_TYPES}"
+                    # )
+                    # Add episode with error handling
                     success_count = 0
                     error_count = 0
                     for episode in episodes:
+                        # --- Start of loop iteration ---
+                        logger.debug(
+                            f"DEBUG app.py: Top of loop. Current episode: {episode}, Type: {type(episode)}"
+                        )
+
                         try:
-                            # Prepare params and sanitize them
+                            if not hasattr(episode, "name") or not hasattr(
+                                episode, "content"
+                            ):
+                                logger.warning(
+                                    f"DEBUG app.py: Skipping episode due to missing 'name' or 'content'. Episode: {episode}, Type: {type(episode)}"
+                                )
+                                continue
+
+                            # Store original reference_time
+                            original_reference_time = episode.reference_time
+                            logger.debug(
+                                f"DEBUG app.py: After hasattr check, before accessing attributes. Episode: {episode}, Type: {type(episode)}"
+                            )
+
+                            # Prepare params and sanitize them (without reference_time and source)
                             episode_params = {
-                                "name": episode.name,
+                                "name": episode.name,  # Potential error source
                                 "episode_body": episode.content,
                                 "source_description": episode.source_description,
-                                "reference_time": episode.reference_time,
-                                "source": episode.source,
                                 "group_id": "sui-docs",
-                                "entity_types": SUI_ENTITY_TYPES,
                                 "uuid": None,
                                 "update_communities": True,
                             }
+                            logger.debug(
+                                f"DEBUG app.py: episode_params prepared: {episode_params}"
+                            )
 
                             # Convert any non-primitive types to JSON strings
                             sanitized_params = sanitize_neo4j_params(episode_params)
+                            # logger.debug(f"DEBUG app.py: sanitized_params: {sanitized_params}") # Can be verbose
 
-                            # Add episode with sanitized parameters
-                            await graphiti.add_episode(**sanitized_params)
+                            # Add episode with error handling
+                            await graphiti.add_episode(
+                                **sanitized_params,
+                                reference_time=original_reference_time,
+                                source=EpisodeType.json,
+                                entity_types=SUI_ENTITY_TYPES,
+                            )
                             success_count += 1
                         except Exception as e:
                             error_count += 1
+                            episode_name_for_log = "UNKNOWN (episode object might be a string or lack .name attribute)"
+                            if hasattr(episode, "name"):  # Try to get name safely
+                                try:
+                                    episode_name_for_log = episode.name
+                                except (
+                                    Exception
+                                ):  # If accessing episode.name itself errors
+                                    pass
+                            elif isinstance(episode, str):
+                                episode_name_for_log = (
+                                    f"'{episode}' (identified as string)"
+                                )
+
                             logger.error(
-                                f"Error adding episode {episode.name}: {str(e)}"
+                                f"DEBUG app.py: Error adding episode. Attempted Name: {episode_name_for_log}. "
+                                f"Original Episode Object during exception: {episode}, Type: {type(episode)}. "
+                                f"Exception Type: {type(e).__name__}, Exception: {str(e)}. Full repr(e): {repr(e)}"
                             )
                             # Continue with the next episode
 

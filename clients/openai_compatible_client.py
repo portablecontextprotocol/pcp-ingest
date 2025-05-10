@@ -6,7 +6,10 @@ from datetime import datetime, timezone
 from logging import INFO, DEBUG
 from urllib.parse import urlparse
 
-from graphiti_core.llm_client.openai_generic_client import OpenAIGenericClient
+from graphiti_core.llm_client.openai_generic_client import (
+    OpenAIGenericClient,
+    LLMConfig,
+)
 
 from dotenv import load_dotenv
 import openai

@@ -1,7 +1,16 @@
 from typing import Optional, List
 import logging
 import json
-from llm_clients.openai_client import OpenAIClient, OpenAIConfig
+import os
+import time
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+)
+import openai
+from clients.openai_client import OpenAIClient, OpenAIConfig
 from models.snippet_extraction_model import Snippet, SnippetList
 
 logger = logging.getLogger(__name__)
@@ -79,6 +88,18 @@ You will be provided with the raw document text in the user message. Your task i
 """
 
 
+class ConnectionError(Exception):
+    """Exception raised for connection errors with the OpenAI API."""
+
+    pass
+
+
+@retry(
+    retry=retry_if_exception_type((openai.APIConnectionError, openai.APITimeoutError)),
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=10),
+    reraise=True,
+)
 async def format_document(
     content: str,
     config: OpenAIConfig,
@@ -88,9 +109,13 @@ async def format_document(
 ) -> List[Snippet]:
     """
     Format a document using OpenAI's API directly and return a list of Snippet objects.
+    With improved error handling and retries for connection issues.
     """
     try:
         client = OpenAIClient(config=config)
+        logger.info(
+            f"SnippetExtractor's OpenAIClient using base_url: {client.client.base_url}"
+        )
         user_content = content
         if source_path:
             user_content = f"Source document path: {source_path}\n\n{content}"
@@ -101,9 +126,29 @@ async def format_document(
             },
             {"role": "user", "content": user_content},
         ]
+
+        # Use cache file to avoid re-processing on connection errors
+        cache_dir = "assets/formatted/cache"
+        os.makedirs(cache_dir, exist_ok=True)
+
+        if source_path:
+            # Create a hash of the content to use as cache key
+            cache_key = hash(
+                source_path + content[:1000]
+            )  # Use first 1000 chars to keep hash reasonable
+            cache_file = f"{cache_dir}/{cache_key}.json"
+
+            # Check if cached result exists
+            if os.path.exists(cache_file):
+                logger.info(f"Loading cached response for {source_path}")
+                with open(cache_file, "r") as f:
+                    data = json.load(f)
+                return [Snippet(**item) for item in data]
+
         response = await client.generate_response(
             messages=messages, response_model=None, max_tokens=max_tokens
         )
+
         # If response is a string, parse as JSON
         if isinstance(response, str):
             try:
@@ -121,9 +166,33 @@ async def format_document(
         # If data is a dict with 'snippets', extract it
         if isinstance(data, dict) and "snippets" in data:
             data = data["snippets"]
+
+        # Save to cache if we have a source_path
+        if source_path and cache_file:
+            with open(cache_file, "w") as f:
+                json.dump(data, f)
+
         # Convert to Snippet objects
         snippets = [Snippet(**item) for item in data]
         return snippets
+
+    except openai.APIConnectionError as e:
+        logger.error(f"Connection error with OpenAI API: {str(e)}")
+        logger.info("Checking if we have locally cached snippets...")
+
+        # Try to load from cache as fallback
+        if source_path and "cache_file" in locals() and os.path.exists(cache_file):
+            logger.info(
+                f"Using cached response for {source_path} due to connection error"
+            )
+            with open(cache_file, "r") as f:
+                data = json.load(f)
+            return [Snippet(**item) for item in data]
+
+        # If no cache, propagate the error
+        raise ConnectionError(
+            "Connection error with OpenAI API. Please check network or API server status."
+        )
 
     except Exception as e:
         logger.error(f"Error formatting document: {str(e)}")

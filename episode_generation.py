@@ -13,7 +13,7 @@ from graphiti_core.embedder.openai import OpenAIEmbedder, OpenAIEmbedderConfig
 from dotenv import load_dotenv
 
 # from entities import ENTITY_TYPES
-from llm_clients.openai_compatible_client import OpenAIGenericClientJSONResponse
+from clients.openai_compatible_client import OpenAIGenericClientJSONResponse
 from models.snippet_extraction_model import SnippetList, Snippet
 
 from utils import get_markdown_files, process_markdown_file
@@ -60,7 +60,7 @@ if not neo4j_uri or not neo4j_user or not neo4j_password:
     raise ValueError("NEO4J_URI, NEO4J_USER, and NEO4J_PASSWORD must be set")
 
 
-async def generate_episodes():
+async def generate_episodes_for_axiom():
     logger.info(f"Using API base URL: {api_base}")
 
     # Initialize Graphiti with custom debug OpenAI Generic client
@@ -245,7 +245,7 @@ def generate_episodes_from_snippets(snippets):
             episode = RawEpisode(
                 name=sanitize_for_neo4j(snippet.title),
                 content=sanitize_for_neo4j(content),
-                source=sanitize_for_neo4j(EpisodeType.json),
+                source=sanitize_for_neo4j(EpisodeType.json.value),
                 source_description=sanitize_for_neo4j(
                     f"Technical documentation snippet from {section}"
                 ),

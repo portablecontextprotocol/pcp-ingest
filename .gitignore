@@ -47,4 +47,4 @@ assets/formatted/
 .env
 
 # Neo4j
-*.md
+assets/*.md

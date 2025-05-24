@@ -71,8 +71,46 @@ def create_openai_config(
     )
 
 
+def create_openai_embedder_config(
+    api_key: Optional[str] = None,
+    api_base: Optional[str] = None,
+    embedding_model: Optional[str] = None,
+) -> OpenAIEmbedderConfig:
+    """
+    Create an OpenAI Embedder configuration with appropriate defaults.
+
+    Args:
+        api_key: The OpenAI API key (defaults to environment variable)
+        api_base: The API base URL (defaults to localhost for local models)
+        embedding_model: The embedding model name (defaults to environment variable or fallback)
+
+    Returns:
+        Configured OpenAIEmbedderConfig instance
+    """
+    api_key = api_key or os.environ.get("OPENAI_API_KEY")
+    api_base = api_base or os.environ.get("OPENAI_API_BASE", "http://127.0.0.1:1234/v1")
+    embedding_model = embedding_model or os.environ.get(
+        "OPENAI_EMBEDDING_MODEL", "text-embedding-nomic-embed-text-v1.5"
+    )
+
+    if not api_key:
+        raise ValueError(
+            "OPENAI_API_KEY must be provided or set as environment variable for embedder"
+        )
+
+    # Validate API base URL
+    api_base = validate_api_base(api_base)
+
+    return OpenAIEmbedderConfig(
+        embedding_model=embedding_model,
+        api_key=api_key,
+        base_url=api_base,
+    )
+
+
 def get_graphiti_client(
     openai_config: Optional[LLMConfig] = None,
+    embedder_config: Optional[OpenAIEmbedderConfig] = None,
     neo4j_uri: Optional[str] = None,
     neo4j_user: Optional[str] = None,
     neo4j_password: Optional[str] = None,
@@ -87,6 +125,7 @@ def get_graphiti_client(
 
     Args:
         openai_config: OpenAI configuration, will be created if not provided
+        embedder_config: OpenAI Embedder configuration, will be created if not provided
         neo4j_uri: Neo4j URI (defaults to environment variable)
         neo4j_user: Neo4j username (defaults to environment variable)
         neo4j_password: Neo4j password (defaults to environment variable)
@@ -106,6 +145,13 @@ def get_graphiti_client(
     # Handle OpenAI configuration
     if openai_config is None:
         openai_config = create_openai_config()
+
+    # Handle Embedder configuration
+    if embedder_config is None:
+        embedder_config = create_openai_embedder_config(
+            api_key=openai_config.api_key,
+            api_base=openai_config.base_url,
+        )
 
     # Handle Neo4j configuration
     neo4j_uri = neo4j_uri or os.environ.get("NEO4J_URI", "bolt://localhost:7687")
@@ -128,11 +174,7 @@ def get_graphiti_client(
             cache=cache,
         ),
         embedder=OpenAIEmbedder(
-            config=OpenAIEmbedderConfig(
-                embedding_model="text-embedding-nomic-embed-text-v1.5",
-                api_key=openai_config.api_key,
-                base_url=openai_config.base_url,
-            ),
+            config=embedder_config,
         ),
     )
 

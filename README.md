@@ -165,9 +165,19 @@ Documents → Knowledge Extraction → Graph Storage → Encryption → User-Own
 
 ## Technical Architecture
 
+### Modular and Hot-Swappable Components
+
+The PCP standard is designed to be **hot-swappable in its components**, including the knowledge graph engine. This modular architecture allows for flexibility and optimization based on specific use cases and requirements.
+
+We have already tested using different frameworks for different use cases. For example, we've successfully ingested documentation using [LightRAG](https://github.com/HKUDS/LightRAG), a state-of-the-art GraphRAG framework that offers different advantages for certain types of knowledge extraction and retrieval.
+
+📹 **Demo**: [See LightRAG integration in action](https://www.loom.com/share/5bc794ed9cfd4a95864377a2c3094de4?sid=0fe940c3-68d6-4ac8-bf72-6edd1d933775)
+
+This demonstrates that PCP's architecture allows developers to choose the best tools for their specific knowledge graph needs while maintaining compatibility with the broader PCP ecosystem.
+
 **Current Stack:**
 
-- **Knowledge Extraction**: Graphiti + OpenAI LLMs
+- **Knowledge Extraction**: Graphiti + OpenAI LLMs (primary), LightRAG (tested alternative)
 - **Graph Database**: Neo4j for relationship modeling
 - **Entity Modeling**: Pydantic schemas for Sui/Move constructs
 - **Processing**: Python async workflows

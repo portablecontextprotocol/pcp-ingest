@@ -13,7 +13,7 @@ from graphiti_core.embedder.openai import OpenAIEmbedder, OpenAIEmbedderConfig
 from dotenv import load_dotenv
 
 # from entities import ENTITY_TYPES
-from llm_clients.openai_compatible_client import OpenAIGenericClientJSONResponse
+from clients.openai_compatible_client import OpenAIGenericClientJSONResponse
 from models.snippet_extraction_model import SnippetList, Snippet
 
 from utils import get_markdown_files, process_markdown_file
@@ -58,83 +58,6 @@ neo4j_password = os.environ.get("NEO4J_PASSWORD", "pass123abcd")
 
 if not neo4j_uri or not neo4j_user or not neo4j_password:
     raise ValueError("NEO4J_URI, NEO4J_USER, and NEO4J_PASSWORD must be set")
-
-
-async def generate_episodes():
-    logger.info(f"Using API base URL: {api_base}")
-
-    # Initialize Graphiti with custom debug OpenAI Generic client
-    config = LLMConfig(
-        api_key=api_key,
-        base_url=api_base,
-        model=model,
-        temperature=0.7,  # Set to 0 for more deterministic responses
-    )
-
-    graphiti = Graphiti(
-        neo4j_uri,
-        neo4j_user,
-        neo4j_password,
-        llm_client=OpenAIGenericClientJSONResponse(
-            config=config,
-            cache=False,  # Caching is not implemented for OpenAI as per the source
-        ),
-        embedder=OpenAIEmbedder(
-            config=OpenAIEmbedderConfig(
-                embedding_model="text-embedding-nomic-embed-text-v1.5",
-                api_key=api_key,
-                base_url=api_base,
-            ),
-        ),
-    )
-
-    try:
-        # Get all markdown files and their metadata
-        markdown_files = await get_markdown_files("./axiom-docs")
-
-        # Process each markdown file and create bulk episodes
-        bulk_episodes = []
-        for file_path, metadata in markdown_files:
-            content = await process_markdown_file(file_path)
-
-            # Create a descriptive name based on the path
-            name = f"Axiom Documentation - {metadata['section'].title()} - {metadata['document_type'].title()}"
-
-            # Create episode
-            episode = RawEpisode(
-                name=name,
-                content=content,
-                source=EpisodeType.text,
-                source_description=f"Axiom design system documentation - {metadata['section']} section",
-                source_url=file_path,
-                reference_time=datetime.now(timezone.utc),
-                metadata=metadata,
-                group_id="axiom-docs",
-                valid_at=datetime.now(timezone.utc),
-                processed=False,
-                summary=f"{metadata['section'].title()} documentation for the Axiom design system",
-            )
-            bulk_episodes.append(episode)
-
-        # Add episodes one by one
-        print(f"Adding {len(bulk_episodes)} episodes to the graph...")
-        for episode in bulk_episodes:
-            await graphiti.add_episode(
-                name=episode.name,
-                episode_body=episode.content,
-                source_description=episode.source_description,
-                reference_time=episode.reference_time,
-                source=episode.source,
-                group_id="axiom-docs",
-                entity_types=ENTITY_TYPES,
-            )
-
-        print("Episodes added successfully!")
-
-    finally:
-        # Close the connection
-        await graphiti.close()
-        print("\nConnection closed")
 
 
 def sanitize_for_neo4j(obj):
@@ -245,11 +168,11 @@ def generate_episodes_from_snippets(snippets):
             episode = RawEpisode(
                 name=sanitize_for_neo4j(snippet.title),
                 content=sanitize_for_neo4j(content),
-                source=sanitize_for_neo4j(EpisodeType.json),
+                source=sanitize_for_neo4j(EpisodeType.json.value),
                 source_description=sanitize_for_neo4j(
                     f"Technical documentation snippet from {section}"
                 ),
-                source_url=sanitize_for_neo4j(source_path),
+                source_url=sanitize_for_neo4j(snippet.source_path),
                 reference_time=datetime.now(
                     timezone.utc
                 ),  # Datetime objects are handled by Neo4j driver
@@ -264,6 +187,7 @@ def generate_episodes_from_snippets(snippets):
                     + ("..." if len(snippet.description) > 100 else "")
                 ),
             )
+            logger.debug(f"DEBUG episode_generation.py: episode prepared: {episode}")
             episodes.append(episode)
         except Exception as e:
             logger.warning(
@@ -271,6 +195,13 @@ def generate_episodes_from_snippets(snippets):
             )
             # Continue to next snippet
 
+    logger.debug(
+        f"DEBUG episode_generation.py: 'generate_episodes_from_snippets' is returning: {episodes}"
+    )
+    if episodes:  # Check if episodes is not empty
+        logger.debug(
+            f"DEBUG episode_generation.py: Types in list being returned: {[type(ep) for ep in episodes]}"
+        )
     return episodes
 
 

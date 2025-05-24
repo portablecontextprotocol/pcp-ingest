@@ -6,7 +6,10 @@ from datetime import datetime, timezone
 from logging import INFO, DEBUG
 from urllib.parse import urlparse
 
-from graphiti_core.llm_client.openai_generic_client import OpenAIGenericClient
+from graphiti_core.llm_client.openai_generic_client import (
+    OpenAIGenericClient,
+    LLMConfig,
+)
 
 from dotenv import load_dotenv
 import openai
@@ -37,7 +40,7 @@ load_dotenv()
 
 # OpenAI compatible provider configuration
 api_key = os.environ.get("OPENAI_API_KEY")
-api_base = "http://127.0.0.1:1234/v1"
+api_base = os.environ.get("OPENAI_API_BASE", "http://127.0.0.1:1234/v1")
 model = os.environ.get(
     "OPENAI_MODEL", "qwen3-30b-a3b"
 )  # Default to gpt-4.1-mini if not specified
